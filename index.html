@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Randomizer Wheel with Color Interchange Animation</title>
+    <style>
+        #inputArea {
+            margin-bottom: 20px;
+        }
+        #wheelCanvas {
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="inputArea">
+        <h2>Enter Entries and Colors</h2>
+        <textarea id="entriesInput" rows="5" cols="30" placeholder="Enter first set of entries, one per line"></textarea>
+        <br><br>
+        <textarea id="colorsInput" rows="5" cols="30" placeholder="Enter second set of entries (e.g., colors), one per line"></textarea>
+        <br><br>
+        <button onclick="startColorInterchange()">Generate Wheel</button>
+    </div>
+    <canvas id="wheelCanvas" width="500" height="500"></canvas>
+
+    <script>
+        var entries = [];
+        var colors = [];
+        var entryColors = {};
+        var interchangeCount = 0;
+        var totalInterchanges = 0;
+        var interchangeInterval = null;
+
+        function startColorInterchange() {
+            // Get user inputs
+            var entriesText = document.getElementById("entriesInput").value.trim();
+            var colorsText = document.getElementById("colorsInput").value.trim();
+
+            // Split the inputs into arrays
+            entries = entriesText.split("\n").map(s => s.trim()).filter(s => s);
+            colors = colorsText.split("\n").map(s => s.trim()).filter(s => s);
+
+            // Check if inputs are valid
+            if (entries.length === 0 || colors.length === 0) {
+                alert("Please enter at least one entry and one color.");
+                return;
+            }
+
+            if (entries.length !== colors.length) {
+                alert("The number of entries and colors must be the same.");
+                return;
+            }
+
+            // Initialize interchange parameters
+            totalInterchanges = getRandomInt(20, 30);
+            interchangeCount = 0;
+
+            // Start the color interchange animation
+            interchangeColors();
+        }
+
+        function interchangeColors() {
+            if (interchangeCount >= totalInterchanges) {
+                // Stop the animation after the desired number of interchanges
+                clearTimeout(interchangeInterval);
+                return;
+            }
+
+            // Randomly match entries to colors
+            var colorAssignments = colors.slice();
+            shuffle(colorAssignments);
+
+            entryColors = {};
+            for (var i = 0; i < entries.length; i++) {
+                entryColors[entries[i]] = colorAssignments[i];
+            }
+
+            // Draw the wheel with the new color assignments
+            drawWheel(entries, entryColors);
+
+            interchangeCount++;
+
+            // Set a random delay between 200 to 300 milliseconds for the next interchange
+            var delay = getRandomInt(200, 300);
+            interchangeInterval = setTimeout(interchangeColors, delay);
+        }
+
+        function drawWheel(entries, entryColors) {
+            // Clear the canvas
+            var canvas = document.getElementById("wheelCanvas");
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            var centerX = canvas.width / 2;
+            var centerY = canvas.height / 2;
+            var radius = Math.min(centerX, centerY) - 10; // Leave some margin
+
+            var totalEntries = entries.length;
+            var anglePerEntry = (2 * Math.PI) / totalEntries;
+
+            // Draw the wheel segments
+            for (var i = 0; i < totalEntries; i++) {
+                var startAngle = i * anglePerEntry;
+                var endAngle = startAngle + anglePerEntry;
+
+                // Set the fill style to the assigned color
+                var fillColor = entryColors[entries[i]];
+                ctx.fillStyle = fillColor;
+
+                // Draw the segment
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.closePath();
+                ctx.fill();
+
+                // Calculate the angle and position for the entry text
+                var textAngle = startAngle + anglePerEntry / 2;
+                var textX = centerX + (radius / 1.5) * Math.cos(textAngle);
+                var textY = centerY + (radius / 1.5) * Math.sin(textAngle);
+
+                // Set text properties
+                ctx.fillStyle = getContrastingColor(fillColor);
+                ctx.font = "bold 16px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                // Rotate the canvas to align the text properly
+                ctx.save();
+                ctx.translate(textX, textY);
+                ctx.rotate(textAngle + Math.PI / 2);
+                ctx.fillText(entries[i], 0, 0);
+                ctx.restore();
+            }
+        }
+
+        // Function to get a random integer between min and max (inclusive)
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // Function to get contrasting color (black or white) based on background color
+        function getContrastingColor(bgColor) {
+            var color = bgColor;
+            // Handle hex colors that start with '#' or not
+            if (color.startsWith('#')) {
+                color = color.substring(1);
+            }
+            // If color is in named format, convert it to hex using a temporary element
+            if (color.length !== 6) {
+                var tempElem = document.createElement("div");
+                tempElem.style.color = color;
+                document.body.appendChild(tempElem);
+                var cs = window.getComputedStyle(tempElem);
+                var pv = cs.getPropertyValue("color");
+                document.body.removeChild(tempElem);
+                var rgb = pv.match(/\d+/g);
+                if (rgb) {
+                    var hex = rgbToHex(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
+                    color = hex;
+                } else {
+                    // Default to black if color can't be parsed
+                    return 'black';
+                }
+            }
+
+            var r, g, b;
+            if (color.length === 6) {
+                r = parseInt(color.substring(0,2),16);
+                g = parseInt(color.substring(2,4),16);
+                b = parseInt(color.substring(4,6),16);
+            } else {
+                // For color names that couldn't be converted, default to black text
+                return 'black';
+            }
+
+            // Calculate brightness
+            var brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+            return brightness > 125 ? 'black' : 'white';
+        }
+
+        function rgbToHex(r, g, b) {
+            return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        // Fisher-Yates shuffle algorithm to randomize the color assignments
+        function shuffle(array) {
+            var currentIndex = array.length, temporaryValue, randomIndex;
+
+            // While there remain elements to shuffle
+            while (0 !== currentIndex) {
+                // Pick a remaining element
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex -= 1;
+
+                // Swap it with the current element
+                temporaryValue = array[currentIndex];
+                array[currentIndex] = array[randomIndex];
+                array[randomIndex] = temporaryValue;
+            }
+
+            return array;
+        }
+    </script>
+</body>
+</html>
